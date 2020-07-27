@@ -3,6 +3,7 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
+const encrypt = require("mongoose-encryption");
 
 const app = express();
 
@@ -13,10 +14,14 @@ app.set("view engine", "ejs");
 
 mongoose.connect("mongodb://localhost:27017/secretsDB", { useFindAndModify: false, useNewUrlParser: true, useUnifiedTopology: true });
 
-const userSchema = {
+const userSchema = new mongoose.Schema({
     email: String,
     password: String,
-};
+});
+
+const secret = "Thisisourlittlesecret";
+
+userSchema.plugin(encrypt, { secret: secret, encryptedFields: ["password"] });
 
 const User = new mongoose.model("user", userSchema);
 
@@ -46,7 +51,7 @@ app.post("/register", function (req, res) {
     });
     newUser.save(function (err) {
         if (err) {
-            res.send("err");
+            res.send(err);
         } else {
             res.render("secrets");
         }
@@ -56,11 +61,15 @@ app.post("/register", function (req, res) {
 app.post("/login", function (req, res) {
     const email = req.body.username;
     const password = req.body.password;
-    User.findOne({ email: email, password: password }, function (err, result) {
-        if (result) {
-            res.render("secrets");
+    User.find({ email: email, password: password }, function (err, result) {
+        if (err) {
+            console.log(err);
         } else {
-            res.send("Wrong!");
+            if (result) {
+                res.render("secrets");
+            } else {
+                res.send("Wrong!");
+            }
         }
     });
 });
