@@ -4,7 +4,7 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const md5 = require("md5");
+const bycrypt = require("bcrypt");
 
 const app = express();
 
@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema({
     password: String,
 });
 
-
+const saltRounds = 10;
 
 const User = new mongoose.model("user", userSchema);
 
@@ -44,30 +44,41 @@ app.get("/secrets", function (req, res) {
 
 
 app.post("/register", function (req, res) {
-    const newUser = new User({
-        email: req.body.username,
-        password: md5(req.body.password)
-    });
-    newUser.save(function (err) {
-        if (err) {
-            res.send(err);
-        } else {
-            res.render("secrets");
-        }
+    bycrypt.hash(req.body.password, saltRounds, function (err, hash) {
+        const newUser = new User({
+            email: req.body.username,
+            password: hash,
+        });
+        newUser.save(function (err) {
+            if (err) {
+                res.send(err);
+            } else {
+                res.render("secrets");
+            }
+        });
     });
 });
 
 app.post("/login", function (req, res) {
     const email = req.body.username;
-    const password = md5(req.body.password);
-    User.find({ email: email, password: password }, function (err, result) {
+    const password = req.body.password;
+
+    User.findOne({ email: email }, function (err, foundUser) {
         if (err) {
             console.log(err);
         } else {
-            if (result) {
-                res.render("secrets");
-            } else {
-                res.send("Wrong!");
+            if (foundUser) {
+                bycrypt.compare(password, foundUser.password, function (compareErr, compareResult) {
+                    if (!compareErr) {
+                        if (compareResult) {
+                            res.render("secrets");
+                        } else {
+                            res.send("Wrong!");
+                        }
+                    } else {
+                        console.log(compareErr);
+                    }
+                });
             }
         }
     });
