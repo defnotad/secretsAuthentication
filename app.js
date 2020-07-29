@@ -9,6 +9,7 @@ const passport = require("passport");
 const passportLocalMongoose = require("passport-local-mongoose");
 const googleStrategy = require("passport-google-oauth20").Strategy;
 const findOrCreate = require("mongoose-findorcreate");
+const facebookStrategy = require("passport-facebook").Strategy;
 
 const app = express();
 
@@ -33,6 +34,7 @@ const userSchema = new mongoose.Schema({
     email: String,
     password: String,
     googleId: String,
+    facebookId: String,
 });
 
 userSchema.plugin(passportLocalMongoose);
@@ -46,7 +48,7 @@ passport.use(User.createStrategy());
 passport.serializeUser(function (user, done) {
     done(null, user.id);
 });
-passport.deserializeUser(function (id, done) { 
+passport.deserializeUser(function (id, done) {
     User.findById(id, function (err, user) {
         done(err, user);
     });
@@ -68,6 +70,23 @@ passport.use(new googleStrategy({
     }
 ));
 
+passport.use(new facebookStrategy({
+    clientID: process.env.FACEBOOK_CLIENT_ID,
+    clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
+    callbackURL: "http://localhost:3000/auth/facebook/secrets",
+},
+    function (accessToken, refreshToken, profile, done) {
+        console.log(profile);
+
+        User.findOrCreate({ facebookId: profile.id }, function (err, user) {
+            if (err) {
+                return done(err);
+            }
+            done(null, user);
+        });
+    }
+));
+
 
 app.get("/", function (req, res) {
     res.render("home");
@@ -81,6 +100,13 @@ app.get("/auth/google/secrets", passport.authenticate("google", { failureRedirec
         res.redirect("/secrets");
     }
 );
+
+app.get("/auth/facebook", passport.authenticate("facebook"));
+
+app.get("/auth/facebook/secrets", passport.authenticate("facebook", {
+    successRedirect: "/secrets",
+    failureRedirect: "/",
+}));
 
 app.get("/register", function (req, res) {
     res.render("register");
@@ -101,6 +127,14 @@ app.get("/secrets", function (req, res) {
 app.get("/logout", function (req, res) {
     req.logout();
     res.redirect("/");
+});
+
+app.get("/submit", function (req, res) {
+    if (req.isAuthenticated()) {
+        res.render("submit");
+    } else {
+        res.redirect("/");
+    }
 });
 
 
@@ -132,6 +166,11 @@ app.post("/login", function (req, res) {
         }
     });
 });
+
+app.post("/submit", function (req, res) {
+    
+});
+
 
 
 app.listen(3000, function () {
